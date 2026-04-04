@@ -1,4 +1,4 @@
-# ChainVigil-Cross-Channel-Fraud-Intelligence-System 🔗⛓
+# ChainVigil-Cross-Channel-Fraud-Intelligence-System 
 
 **Cross-Channel Fraud Intelligence System using Graph Intelligence & GNN**
 
