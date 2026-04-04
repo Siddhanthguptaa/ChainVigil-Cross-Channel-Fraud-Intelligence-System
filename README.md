@@ -2,7 +2,6 @@
 
 **Cross-Channel Fraud Intelligence System using Graph Intelligence & GNN**
 
-**Repository:** https://github.com/rishiwalia08/ChainVigil-Cross-Channel-Fraud-Intelligence-System
 
 A graph-native financial crime detection system that identifies cross-channel money mule networks in near real-time. Integrates multi-source transaction logs (UPI, ATM, Web, Mobile App) into a Unified Entity Graph (UEG) and applies Graph Neural Networks to detect high-velocity fund movement and mule-ring clusters.
 
