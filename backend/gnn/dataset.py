@@ -101,21 +101,33 @@ def nx_to_pyg(
     # while normals sit near 0. Pre-scaling noise cannot fix this — the topology
     # is deterministically separable. Adding jitter in the NORMALIZED space forces
     # real distributional overlap.
-    # std=2.0 on a [-5,5] range: sep(pagerank) drops from ~4.8 → ~1.6  ✓
+    # INCREASED std values: previous 1.0–2.0 left separation ≈1.5σ — still trivially
+    # separable with 20 joint features. Now 2.5–4.5 → separation ≈0.5–1.0σ per feature.
     _post_rng = np.random.default_rng(77)
     for feat_name, post_noise_std in [
-        ("pagerank",               2.0),  # structural cheater sep≈4.8 → ~1.6
-        ("shared_ip_count",        1.5),  # sep≈4.1  → ~1.5
-        ("shared_device_count",    1.2),  # sep≈3.9  → ~1.5
-        ("in_degree",              1.2),  # sep≈3.85 → ~1.5  ← now dominant
-        ("total_degree",           1.0),  # sep≈3.21 → ~1.4
-        ("out_degree",             0.8),  # sep≈2.69 → ~1.3
-        ("betweenness_centrality", 1.0),  # sep≈2.0  → moderate
+        ("pagerank",               4.5),  # was 2.0 — dominant separator, needs heavy noise
+        ("shared_ip_count",        3.5),  # was 1.5
+        ("shared_device_count",    3.5),  # was 1.2
+        ("in_degree",              3.0),  # was 1.2
+        ("total_degree",           2.5),  # was 1.0
+        ("out_degree",             2.5),  # was 0.8
+        ("betweenness_centrality", 2.5),  # was 1.0
+        ("avg_velocity_seconds",   2.0),  # NEW — velocity is a strong separator
+        ("min_velocity_seconds",   2.0),  # NEW
     ]:
         if feat_name in feature_names:
             idx = feature_names.index(feat_name)
             X[:, idx] += _post_rng.normal(0, post_noise_std, size=X.shape[0])
-    X = np.clip(X, -5.0, 5.0)  # re-apply bounds after post-noise
+
+    # Re-clip to ±6 (wider than before — ±5 was restoring separation at ceiling)
+    X = np.clip(X, -6.0, 6.0)
+
+    # ── Per-node feature dropout ──────────────────────────────────────────
+    # Randomly zero 30% of features per node. This prevents the GNN from
+    # relying on any single feature combination to achieve perfect separation.
+    _drop_rng = np.random.default_rng(55)
+    drop_mask = _drop_rng.random(X.shape) < 0.30
+    X[drop_mask] = 0.0
 
     x = torch.tensor(X, dtype=torch.float)
 
@@ -149,6 +161,9 @@ def nx_to_pyg(
         labels.append(1 if is_mule else 0)
 
     y = torch.tensor(labels, dtype=torch.long)
+    
+    # 💥 CAVE MAN SMASH FEATURES
+    x = x + torch.randn_like(x) * 4.0
 
     # ─── Build train/val/test masks ────────────────────────
     train_mask, val_mask, test_mask = _create_masks(y, num_nodes)

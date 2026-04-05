@@ -35,7 +35,7 @@ class Trainer:
         num_layers: int = GNN_NUM_LAYERS,
         dropout: float = GNN_DROPOUT,
         lr: float = GNN_LEARNING_RATE,
-        label_noise_rate: float = 0.07,  # STEP 2: 7% label noise on training set
+        label_noise_rate: float = 0.18 ,  # STEP 2: 18% label noise on training set (↑ from 12%)
     ):
         self.data = data
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

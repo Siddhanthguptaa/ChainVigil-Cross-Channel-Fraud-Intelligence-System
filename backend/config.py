@@ -18,12 +18,12 @@ MULE_RING_SIZE_RANGE = (4, 8)   # restored size: more mules per ring
 CHANNELS = ["UPI", "ATM", "WEB", "MOBILE_APP"]
 
 # ─── GNN Configuration ─────────────────────────────────────────────
-GNN_HIDDEN_DIM = 64
-GNN_NUM_LAYERS = 3
+GNN_HIDDEN_DIM = 24   # ↓ from 32: further reduce capacity to prevent memorisation
+GNN_NUM_LAYERS = 2    # ↓ from 3: fewer hops = less topology leakage
 GNN_LEARNING_RATE = 0.005
 GNN_EPOCHS = 200
-GNN_DROPOUT = 0.4   # ↑ stronger regularisation to prevent overfitting small test set
-RISK_THRESHOLD = 0.85
+GNN_DROPOUT = 0.55    # ↑ from 0.5: stronger regularisation
+RISK_THRESHOLD = 0.55
 
 # ─── Paths ──────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

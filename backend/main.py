@@ -33,12 +33,29 @@ from backend.data.generator import generate_all_data
 from backend.graph.builder import GraphBuilder
 from backend.graph.neo4j_client import Neo4jClient
 
+
+from contextlib import asynccontextmanager
+
+# ─── Lifecycle Events ─────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan_context(app: FastAPI):
+    """Startup must be INSTANT so Render can detect the port immediately.
+    Neo4j and pipeline are lazy-initialized on first API call.
+    """
+    print("✅ ChainVigil API started. Visit /docs or use the UI to run the pipeline.")
+    yield
+    """Clean up resources."""
+    if state["neo4j_client"]:
+        state["neo4j_client"].close()
+
 # ─── App Setup ──────────────────────────────────────────────────
 
 app = FastAPI(
     title="ChainVigil API",
     description="Cross-Channel Mule Detection using Graph Intelligence & GNN",
     version="1.0.0",
+    lifespan=lifespan_context,
 )
 
 app.add_middleware(
@@ -76,22 +93,6 @@ if FRONTEND_DIST.exists():
 else:
     print(f"⚠️  Frontend dist not found at {FRONTEND_DIST} — serving API only")
 
-
-# ─── Lifecycle Events ─────────────────────────────────────────
-
-@app.on_event("startup")
-async def startup():
-    """Startup must be INSTANT so Render can detect the port immediately.
-    Neo4j and pipeline are lazy-initialized on first API call.
-    """
-    print("✅ ChainVigil API started. Visit /docs or use the UI to run the pipeline.")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Clean up resources."""
-    if state["neo4j_client"]:
-        state["neo4j_client"].close()
 
 
 # ─── Health & Info ─────────────────────────────────────────────

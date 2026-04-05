@@ -31,7 +31,7 @@ class ChainVigilGNN(nn.Module):
         num_layers: int = 2,
         dropout: float = GNN_DROPOUT,
         num_heads: int = 4,
-        edge_drop_p: float = 0.45,  # DropEdge: kills 45% of edges during training
+        edge_drop_p: float = 0.65,  # DropEdge: kills 65% of edges during training (↑ from 0.55)
     ):
         super().__init__()
 
