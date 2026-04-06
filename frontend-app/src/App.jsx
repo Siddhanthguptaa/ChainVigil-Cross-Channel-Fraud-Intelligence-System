@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
+import LoadingScreen from './LoadingScreen'
+import DecryptedText from './DecryptedText'
+import GridScan from './GridScan'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -319,13 +322,13 @@ function IntelligenceTab({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 16 }}>
               {[
-                { label: 'Fraud Rate',       value: (((metricsData.gauges?.fraud_rate) || 0) * 100).toFixed(1) + '%', color: '#ef4444' },
-                { label: 'Model AUC',        value: ((metricsData.gauges?.model_auc) || 0).toFixed(4),             color: '#6366f1' },
-                { label: 'Flagged Accounts', value: metricsData.gauges?.flagged_accounts || 0,                     color: '#f97316' },
-                { label: 'Clusters',         value: metricsData.gauges?.clusters_detected || 0,                   color: '#a78bfa' },
-                { label: 'Total Predictions',value: metricsData.counters?.total_predictions || 0,                 color: '#10b981' },
-                { label: 'Intelligence Calls',value: metricsData.counters?.intelligence_queries || 0,             color: '#3b82f6' },
-                { label: 'NLP Scans',        value: metricsData.counters?.nlp_analyses || 0,                     color: '#f59e0b' },
+                { label: 'Fraud Rate', value: (((metricsData.gauges?.fraud_rate) || 0) * 100).toFixed(1) + '%', color: '#ef4444' },
+                { label: 'Model AUC', value: ((metricsData.gauges?.model_auc) || 0).toFixed(4), color: '#6366f1' },
+                { label: 'Flagged Accounts', value: metricsData.gauges?.flagged_accounts || 0, color: '#f97316' },
+                { label: 'Clusters', value: metricsData.gauges?.clusters_detected || 0, color: '#a78bfa' },
+                { label: 'Total Predictions', value: metricsData.counters?.total_predictions || 0, color: '#10b981' },
+                { label: 'Intelligence Calls', value: metricsData.counters?.intelligence_queries || 0, color: '#3b82f6' },
+                { label: 'NLP Scans', value: metricsData.counters?.nlp_analyses || 0, color: '#f59e0b' },
               ].map(m => (
                 <div key={m.label} className="stat-card">
                   <div className="stat-value" style={{ color: m.color, fontSize: 20 }}>{m.value}</div>
@@ -577,7 +580,7 @@ function App() {
       try {
         const tx = JSON.parse(e.data)
         setLiveEvents(prev => [tx, ...prev].slice(0, 80))
-      } catch {}
+      } catch { }
     }
     es.onerror = () => { setLiveConnected(false) }
     eventSourceRef.current = es
@@ -614,831 +617,1010 @@ function App() {
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="app-container">
-      {/* Header */}
-      <header className="header">
-        <div className="header-brand">
-          <div className="header-logo">⛓</div>
+    <div className="flex min-h-screen text-on-surface font-body bg-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+      <LoadingScreen />
+
+      {/* Sidebar Navigation */}
+      <aside className="w-64 bg-surface-container-low border-r border-outline-variant flex flex-col fixed h-full z-10 transition-transform">
+        {/* Brand */}
+        <div className="p-6 border-b border-outline-variant flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-fixed flex items-center justify-center shadow-md">
+            <span className="material-symbols-outlined text-on-primary">link</span>
+          </div>
           <div>
-            <div className="header-title">ChainVigil</div>
-            <div className="header-subtitle">Cross-Channel Mule Detection</div>
+            <h2 className="font-headline font-bold text-xl tracking-tight text-on-surface">ChainVigil</h2>
+            <p className="text-[10px] uppercase font-bold tracking-widest text-primary mt-0.5">Terminal</p>
           </div>
         </div>
-        <div className="header-status">
-          <div className="status-badge">
-            <span className={`status-dot ${pipelineState.analyzed ? 'active' : 'inactive'}`} />
-            {pipelineState.analyzed ? 'Analysis Active' : 'Idle'}
-          </div>
-        </div>
-      </header>
 
-      {/* Navigation */}
-      <nav className="nav-tabs">
-        {[
-          { id: 'pipeline',     icon: '🔄', label: 'Pipeline' },
-          { id: 'graph',        icon: '🔗', label: 'Graph' },
-          { id: 'accounts',     icon: '👤', label: 'Accounts' },
-          { id: 'clusters',     icon: '🕸️', label: 'Clusters' },
-
-          { id: 'livefeed',     icon: '📡', label: 'Live Feed' },
-          { id: 'xai',          icon: '🧠', label: 'XAI Auditor' },
-          { id: 'sar',          icon: '📋', label: 'SAR Report' },
-          { id: 'intelligence', icon: '🤖', label: 'Intelligence' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            id={`tab-${tab.id}`}
-            className={`nav-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="nav-tab-icon">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* ═══ Pipeline Tab ═══ */}
-      {activeTab === 'pipeline' && (
-        <div>
-          <div className="pipeline-section">
-            <div className="pipeline-steps">
-              {[
-                { n: 1, label: 'Generate Data', desc: 'Synthetic transactions', done: pipelineState.generated },
-                { n: 2, label: 'Build Graph', desc: 'Unified Entity Graph', done: pipelineState.ingested },
-                { n: 3, label: 'Train GNN', desc: 'GraphSAGE + GAT', done: pipelineState.trained },
-                { n: 4, label: 'Analyze Risk', desc: 'Cluster detection', done: pipelineState.analyzed },
-              ].map(step => (
-                <div key={step.n} className={`pipeline-step ${step.done ? 'completed' : ''}`}>
-                  <div className="pipeline-step-number">{step.done ? '✓' : step.n}</div>
-                  <div>
-                    <div className="pipeline-step-label">{step.label}</div>
-                    <div className="pipeline-step-desc">{step.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button id="btn-run-pipeline" className="btn btn-primary" onClick={runFullPipeline} disabled={loading}>
-                {loading ? <span className="spinner" /> : '🚀'} Run Full Pipeline
-              </button>
-              <button id="btn-generate" className="btn btn-secondary" onClick={runGenerate} disabled={loading}>
-                Generate Data
-              </button>
-              <button id="btn-ingest" className="btn btn-secondary" onClick={runIngest}
-                disabled={loading || !pipelineState.generated}>
-                Build Graph
-              </button>
-              <button id="btn-train" className="btn btn-secondary" onClick={runTrain}
-                disabled={loading || !pipelineState.ingested}>
-                Train Model
-              </button>
-              <button id="btn-analyze" className="btn btn-secondary" onClick={runAnalyze}
-                disabled={loading || !pipelineState.trained}>
-                Analyze Risk
-              </button>
-            </div>
-          </div>
-
-          {/* Stats */}
-          {(stats || riskDist) && (
-            <div className="stats-grid">
-              {stats && (
-                <>
-                  <div className="stat-card cyan">
-                    <div className="stat-label">Nodes</div>
-                    <div className="stat-value">{(stats.nx_nodes || 0).toLocaleString()}</div>
-                  </div>
-                  <div className="stat-card purple">
-                    <div className="stat-label">Edges</div>
-                    <div className="stat-value">{(stats.nx_edges || 0).toLocaleString()}</div>
-                  </div>
-                </>
-              )}
-              {riskDist && (
-                <>
-                  <div className="stat-card rose">
-                    <div className="stat-label">Escalate</div>
-                    <div className="stat-value">{riskDist.escalate || 0}</div>
-                  </div>
-                  <div className="stat-card amber">
-                    <div className="stat-label">Freeze</div>
-                    <div className="stat-value">{riskDist.freeze || 0}</div>
-                  </div>
-                  <div className="stat-card emerald">
-                    <div className="stat-label">Monitor</div>
-                    <div className="stat-value">{riskDist.monitor || 0}</div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Training Results */}
-          {trainingResults && (
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div className="card-header">
-                <span className="card-title">📊 Training Results</span>
-              </div>
-              <div className="stats-grid">
-                <div className="stat-card cyan">
-                  <div className="stat-label">AUC-ROC</div>
-                  <div className="stat-value">{(trainingResults.best_val_auc || 0).toFixed(4)}</div>
-                </div>
-                <div className="stat-card emerald">
-                  <div className="stat-label">Test F1</div>
-                  <div className="stat-value">
-                    {(trainingResults.test_metrics?.f1 || 0).toFixed(4)}
-                  </div>
-                </div>
-                <div className="stat-card purple">
-                  <div className="stat-label">Precision</div>
-                  <div className="stat-value">
-                    {(trainingResults.test_metrics?.precision || 0).toFixed(4)}
-                  </div>
-                </div>
-                <div className="stat-card amber">
-                  <div className="stat-label">Recall</div>
-                  <div className="stat-value">
-                    {(trainingResults.test_metrics?.recall || 0).toFixed(4)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Risk Distribution */}
-          {riskDist && (
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div className="card-header">
-                <span className="card-title">⚖️ Risk Distribution</span>
-              </div>
-              <div className="distribution-chart">
-                {[
-                  { label: 'Escalate', count: riskDist.escalate || 0, color: 'var(--color-danger)' },
-                  { label: 'Freeze', count: riskDist.freeze || 0, color: 'var(--color-warning)' },
-                  { label: 'Monitor', count: riskDist.monitor || 0, color: 'var(--accent-blue)' },
-                  { label: 'Clear', count: riskDist.clear || 0, color: 'var(--accent-green)' },
-                ].map(bar => {
-                  const maxCount = Math.max(riskDist.escalate || 0, riskDist.freeze || 0,
-                    riskDist.monitor || 0, riskDist.clear || 0, 1)
-                  const height = (bar.count / maxCount) * 150
-                  return (
-                    <div key={bar.label} className="distribution-bar">
-                      <div className="distribution-bar-count" style={{ color: bar.color }}>
-                        {bar.count}
-                      </div>
-                      <div className="distribution-bar-fill" style={{
-                        height: `${height}px`, background: bar.color, opacity: 0.7
-                      }} />
-                      <div className="distribution-bar-label">{bar.label}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Log Output */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">📟 Pipeline Log</span>
-              <button className="btn btn-sm btn-secondary" onClick={() => setLogs([])}>Clear</button>
-            </div>
-            <div className="log-output" ref={logRef}>
-              {logs.length === 0 && (
-                <div className="log-line" style={{ opacity: 0.5 }}>
-                  Waiting for pipeline execution...
-                </div>
-              )}
-              {logs.map((log, i) => (
-                <div key={i} className={`log-line ${log.type}`}>{log.msg}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ Graph Tab ═══ */}
-      {activeTab === 'graph' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 className="section-title">🔗 Unified Entity Graph</h2>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {graphData && (
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Showing {graphData.showing_nodes}/{graphData.total_nodes_in_graph} nodes •{' '}
-                  {graphData.showing_links}/{graphData.total_edges_in_graph} edges
-                </span>
-              )}
-              <button className="btn btn-primary btn-sm" onClick={fetchGraphData}
-                disabled={graphLoading || !pipelineState.ingested}>
-                {graphLoading ? <span className="spinner" /> : '🔄'} Load Graph
-              </button>
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div style={{
-            display: 'flex', gap: 20, marginBottom: 16, padding: '10px 16px',
-            background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-subtle)', flexWrap: 'wrap', fontSize: 12
-          }}>
-            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>NODES:</span>
-            {[
-              { label: 'Account', color: '#3b82f6' },
-              { label: 'Mule Account', color: '#f43f5e' },
-              { label: 'Device', color: '#10b981' },
-              { label: 'IP Address', color: '#a78bfa' },
-              { label: 'ATM', color: '#f59e0b' },
-            ].map(item => (
-              <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%',
-                  background: item.color, display: 'inline-block'
-                }} />
-                {item.label}
-              </span>
-            ))}
-            <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginLeft: 12 }}>EDGES:</span>
-            {[
-              { label: 'Transfer', color: 'rgba(59, 130, 246, 0.4)' },
-              { label: 'Suspicious', color: 'rgba(244, 63, 94, 0.7)' },
-              { label: 'Device/IP', color: 'rgba(148, 163, 184, 0.2)' },
-            ].map(item => (
-              <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{
-                  width: 16, height: 3, borderRadius: 2,
-                  background: item.color, display: 'inline-block'
-                }} />
-                {item.label}
-              </span>
-            ))}
-          </div>
-
-          {!graphData ? (
-            <div className="empty-state" style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border-subtle)' }}>
-              <div className="empty-state-icon">🔗</div>
-              <div className="empty-state-title">Graph Not Loaded</div>
-              <div className="empty-state-desc">
-                {pipelineState.ingested
-                  ? 'Click "Load Graph" to visualize the Unified Entity Graph.'
-                  : 'Run the pipeline first (at least Generate + Build Graph).'}
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)',
-              overflow: 'hidden', background: '#f0f4f8', position: 'relative'
-            }}>
-              {hoveredNode && (
-                <div style={{
-                  position: 'absolute', top: 12, left: 12, zIndex: 10,
-                  background: 'rgba(255, 255, 255, 0.95)', border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-sm)', padding: '12px 16px',
-                  fontSize: 12, color: 'var(--text-primary)', minWidth: 200,
-                  backdropFilter: 'blur(8px)', boxShadow: 'var(--shadow-card-hover)'
-                }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, marginBottom: 6, color: 'var(--accent-blue-dark)' }}>
-                    {hoveredNode.id}
-                  </div>
-                  <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Type: {hoveredNode.entity_type}</div>
-                  {hoveredNode.entity_type === 'Account' && (
-                    <>
-                      <div>Mule: {hoveredNode.is_mule ? '🚨 Yes' : '✅ No'}</div>
-                      {hoveredNode.risk_score > 0 && (
-                        <div style={{ color: hoveredNode.risk_score >= 0.85 ? 'var(--color-danger)' : 'var(--text-secondary)' }}>
-                          Risk: {(hoveredNode.risk_score * 100).toFixed(1)}%
-                        </div>
-                      )}
-                      {hoveredNode.cluster_id && (
-                        <div style={{ color: 'var(--color-danger)' }}>Cluster: {hoveredNode.cluster_id}</div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-              <ForceGraph2D
-                ref={graphRef}
-                graphData={{ nodes: graphData.nodes, links: graphData.links }}
-                width={1380}
-                height={650}
-                backgroundColor="#f0f4f8"
-                nodeRelSize={4}
-                nodeVal={node => {
-                  if (node.entity_type === 'Account') return node.is_mule ? 6 : 3
-                  return 2
-                }}
-                nodeColor={node => {
-                  if (node.entity_type === 'Account') {
-                    if (node.is_mule) return '#f43f5e'
-                    if (node.risk_score >= 0.6) return '#f59e0b'
-                    return '#3b82f6'
-                  }
-                  if (node.entity_type === 'Device') return '#10b981'
-                  if (node.entity_type === 'IPAddress') return '#a78bfa'
-                  if (node.entity_type === 'ATMTerminal') return '#f59e0b'
-                  return '#64748b'
-                }}
-                nodeCanvasObjectMode={() => 'after'}
-                nodeCanvasObject={(node, ctx, globalScale) => {
-                  if (node.entity_type !== 'Account' || globalScale < 1.5) return
-                  const label = node.id.replace('ACC-', '')
-                  const fontSize = 10 / globalScale
-                  ctx.font = `${fontSize}px JetBrains Mono, monospace`
-                  ctx.textAlign = 'center'
-                  ctx.textBaseline = 'middle'
-                  ctx.fillStyle = 'rgba(26, 35, 50, 0.7)'
-                  ctx.fillText(label, node.x, node.y + 8 / globalScale)
-                }}
-                linkColor={link => {
-                  if (link.is_suspicious) return 'rgba(244, 63, 94, 0.6)'
-                  if (link.edge_type === 'TRANSFERRED_TO') return 'rgba(59, 130, 246, 0.3)'
-                  return 'rgba(148, 163, 184, 0.1)'
-                }}
-                linkWidth={link => {
-                  if (link.is_suspicious) return 1.5
-                  if (link.edge_type === 'TRANSFERRED_TO') return 0.8
-                  return 0.3
-                }}
-                linkDirectionalArrowLength={link => link.edge_type === 'TRANSFERRED_TO' ? 3 : 0}
-                linkDirectionalArrowRelPos={1}
-                onNodeHover={node => setHoveredNode(node || null)}
-                onNodeClick={node => {
-                  if (node.entity_type === 'Account') {
-                    fetchExplanation(node.id)
-                    setActiveTab('xai')
-                  }
-                }}
-                cooldownTicks={100}
-                d3AlphaDecay={0.02}
-                d3VelocityDecay={0.3}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ Accounts Tab ═══ */}
-      {activeTab === 'accounts' && (
-        <div>
-          <h2 className="section-title">👤 Account Risk Scores</h2>
-          {accounts.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🔍</div>
-              <div className="empty-state-title">No Data Available</div>
-              <div className="empty-state-desc">Run the pipeline first to generate risk scores.</div>
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Account ID</th>
-                    <th>Risk Score</th>
-                    <th>Action</th>
-                    <th>Flagged</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.slice(0, 50).map(acc => (
-                    <tr key={acc.account_id}>
-                      <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-                        {acc.account_id}
-                      </td>
-                      <td>
-                        <div className="risk-bar-container">
-                          <span className="risk-score" style={{ color: getRiskColor(acc.mule_probability) }}>
-                            {(acc.mule_probability * 100).toFixed(1)}%
-                          </span>
-                          <div className="risk-bar">
-                            <div className={`risk-bar-fill ${getRiskLevel(acc.mule_probability)}`}
-                              style={{ width: `${acc.mule_probability * 100}%` }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`risk-badge ${getActionClass(acc.recommended_action)}`}>
-                          {acc.recommended_action}
-                        </span>
-                      </td>
-                      <td>{acc.is_flagged ? '🚨' : '✅'}</td>
-                      <td>
-                        <button className="btn btn-sm btn-secondary"
-                          onClick={() => { fetchExplanation(acc.account_id); setActiveTab('xai') }}>
-                          🧠 Explain
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ Clusters Tab ═══ */}
-      {activeTab === 'clusters' && (
-        <div>
-          <h2 className="section-title">🕸️ Detected Mule Ring Clusters</h2>
-          {clusters.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🕸️</div>
-              <div className="empty-state-title">No Clusters Detected</div>
-              <div className="empty-state-desc">Run analysis to detect mule ring clusters.</div>
-            </div>
-          ) : (
-            <div className="clusters-grid">
-              {clusters.map(cluster => (
-                <div key={cluster.cluster_id} className="cluster-card">
-                  <div className="cluster-header">
-                    <span className="cluster-id">{cluster.cluster_id}</span>
-                    <span className="risk-badge escalate">
-                      {(cluster.avg_risk_score * 100).toFixed(1)}% Risk
-                    </span>
-                  </div>
-                  <div className="cluster-metrics">
-                    <div className="cluster-metric">
-                      <span className="cluster-metric-label">Members</span>
-                      <span className="cluster-metric-value" style={{ color: 'var(--accent-blue)' }}>
-                        {cluster.size}
-                      </span>
-                    </div>
-                    <div className="cluster-metric">
-                      <span className="cluster-metric-label">Density</span>
-                      <span className="cluster-metric-value" style={{ color: 'var(--accent-purple)' }}>
-                        {(cluster.density || 0).toFixed(3)}
-                      </span>
-                    </div>
-                    <div className="cluster-metric">
-                      <span className="cluster-metric-label">Volume</span>
-                      <span className="cluster-metric-value" style={{ color: 'var(--color-warning)' }}>
-                        ₹{((cluster.total_volume || 0) / 1000).toFixed(1)}K
-                      </span>
-                    </div>
-                    <div className="cluster-metric">
-                      <span className="cluster-metric-label">Avg Velocity</span>
-                      <span className="cluster-metric-value" style={{ color: 'var(--color-danger)' }}>
-                        {((cluster.avg_velocity_seconds || 0) / 60).toFixed(1)}m
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>
-                    <strong>Hub:</strong>{' '}
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-danger)' }}>
-                      {cluster.hub_account}
-                    </span>
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <strong>Channels:</strong> {(cluster.channels_used || []).join(', ')}
-                  </div>
-                  <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {(cluster.members || []).slice(0, 8).map(m => (
-                      <span key={m} style={{
-                        padding: '2px 8px', background: '#fef2f2',
-                        border: '1px solid #fecaca', borderRadius: 6,
-                        fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
-                        color: '#dc2626', cursor: 'pointer'
-                      }}
-                        onClick={() => { fetchExplanation(m); setActiveTab('xai') }}>
-                        {m}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ XAI Tab ═══ */}
-      {activeTab === 'xai' && (
-        <div>
-          <h2 className="section-title">🧠 Explainable AI Auditor</h2>
-          {!explanation ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🧠</div>
-              <div className="empty-state-title">No Explanation Selected</div>
-              <div className="empty-state-desc">
-                Click "Explain" on an account from the Accounts tab, or click an account in a cluster.
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="explanation-panel">
-                <div className="explanation-header">
-                  <span className="explanation-account" style={{ color: 'var(--accent-blue-dark)' }}>
-                    {explanation.account_id}
-                  </span>
-                  <span className="risk-score" style={{
-                    color: getRiskColor(explanation.confidence_score),
-                    fontSize: 24
-                  }}>
-                    {(explanation.confidence_score * 100).toFixed(1)}%
-                  </span>
-                </div>
-
-                <div style={{
-                  padding: 16, background: 'var(--bg-tinted)',
-                  borderRadius: 'var(--radius-sm)', marginBottom: 20,
-                  fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)'
-                }}>
-                  {explanation.xai_reasoning}
-                </div>
-
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)' }}>
-                  FEATURE ATTRIBUTIONS
-                </h3>
-                <div className="feature-bars">
-                  {(explanation.feature_attributions || []).map(feat => (
-                    <div key={feat.name} className="feature-bar-row">
-                      <span className="feature-bar-label">{feat.name.replace(/_/g, ' ')}</span>
-                      <div className="feature-bar-track">
-                        <div className="feature-bar-fill"
-                          style={{ width: `${feat.importance * 100}%` }} />
-                      </div>
-                      <span className="feature-bar-value">{(feat.importance * 100).toFixed(1)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ Reports Tab ═══ */}
-      {activeTab === 'report' && (
-        <div>
-          <h2 className="section-title">📄 Audit Reports</h2>
-          <div style={{ marginBottom: 20 }}>
-            <button id="btn-generate-report" className="btn btn-primary" onClick={fetchReport}
-              disabled={!pipelineState.analyzed}>
-              📄 Generate Full Audit Report
+        {/* Navigation */}
+        <nav className="flex-1 py-6 px-4 space-y-2">
+          {[
+            { id: 'pipeline', icon: 'account_tree', label: 'Pipeline Engine' },
+            { id: 'graph', icon: 'hub', label: 'Entity Graph' },
+            { id: 'accounts', icon: 'person_search', label: 'Account Risk' },
+            { id: 'clusters', icon: 'group_work', label: 'Mule Clusters' },
+            { id: 'livefeed', icon: 'dynamic_feed', label: 'Live Feed' },
+            { id: 'xai', icon: 'psychology', label: 'XAI Auditor' },
+            { id: 'sar', icon: 'assessment', label: 'SAR Automation' },
+            { id: 'intelligence', icon: 'insights', label: 'Intelligence' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === tab.id
+                ? 'bg-primary/10 text-primary font-bold border border-primary/20'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-medium'
+                }`}
+            >
+              <span className="material-symbols-outlined">{tab.icon}</span>
+              {tab.label}
             </button>
+          ))}
+        </nav>
+
+        {/* System Status Footer */}
+        <div className="p-4 m-4 rounded-xl bg-surface-container border border-outline-variant/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="relative flex h-3 w-3">
+              {pipelineState.analyzed ? (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                </>
+              ) : (
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-outline"></span>
+              )}
+            </div>
+            <span className="text-xs font-bold text-on-surface uppercase tracking-wider">
+              {pipelineState.analyzed ? 'System Active' : 'System Idle'}
+            </span>
           </div>
-
-          {!report ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📄</div>
-              <div className="empty-state-title">No Report Generated</div>
-              <div className="empty-state-desc">
-                Run the pipeline and click "Generate Full Audit Report".
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="stats-grid">
-                <div className="stat-card cyan">
-                  <div className="stat-label">Accounts Analyzed</div>
-                  <div className="stat-value">{report.summary?.total_accounts_analyzed || 0}</div>
-                </div>
-                <div className="stat-card rose">
-                  <div className="stat-label">Flagged</div>
-                  <div className="stat-value">{report.summary?.flagged_accounts || 0}</div>
-                </div>
-                <div className="stat-card purple">
-                  <div className="stat-label">Clusters</div>
-                  <div className="stat-value">{report.summary?.clusters_detected || 0}</div>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">📋 Report JSON</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {report.report_id}
-                  </span>
-                </div>
-                <div className="log-output" style={{ maxHeight: 500, fontSize: 11 }}>
-                  <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(report, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          )}
+          <p className="text-[10px] text-on-surface-variant leading-tight">Connected to Deep Graph Backend. Ready for analysis.</p>
         </div>
-      )}
+      </aside>
 
-      {/* Footer */}
+      {/* Main Content Area */}
+      <main className="flex-1 ml-64 p-8 grid-bg relative">
+        {activeTab === 'pipeline' && (
+          <div style={{ position: 'fixed', left: '16rem', top: 0, bottom: 0, right: 0, pointerEvents: 'none', zIndex: 0, opacity: 0.6 }}>
+            <GridScan
+              sensitivity={0.55}
+              lineThickness={0.5}
+              linesColor="#000000"
+              gridScale={0.1}
+              scanColor="#000000"
+              scanOpacity={0.15}
+              enablePost={false}
+              bloomIntensity={0}
+              chromaticAberration={0}
+              noiseIntensity={0.02}
+            />
+          </div>
+        )}
 
-      {/* ── Live Feed Tab ── */}
-      {activeTab === 'livefeed' && (
-        <div className="tab-content">
-          <div className="section-card">
-            <div className="section-header">
-              <h2 className="section-title">📡 Real-Time Transaction Feed</h2>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: liveConnected ? '#22c55e' : '#6b7280', display: 'inline-block' }} />
-                  {liveConnected ? 'LIVE' : 'Disconnected'}
-                </span>
-                {!liveConnected
-                  ? <button className="btn btn-primary" onClick={startLiveFeed}>▶ Start Feed</button>
-                  : <button className="btn btn-secondary" onClick={stopLiveFeed}>⏹ Stop</button>
-                }
-              </div>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
-              Live UPI/ATM/NEFT/RTGS transactions scored in real-time by the rule engine. Color-coded by risk level.
-            </p>
-            {liveEvents.length === 0 ? (
-              <div className="empty-state">
-                <div style={{ fontSize: 48 }}>📡</div>
-                <h3>Feed Not Started</h3>
-                <p>Click "Start Feed" to begin streaming live transaction events.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
-                {liveEvents.map((evt, i) => (
-                  <div key={i} style={{
-                    display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 90px', gap: 10,
-                    alignItems: 'center', padding: '10px 14px', borderRadius: 8,
-                    background: evt.severity === 'CRITICAL' ? '#ef444410' : evt.severity === 'HIGH' ? '#f9731610' : evt.severity === 'MEDIUM' ? '#eab30810' : '#22c55e08',
-                    border: `1px solid ${evt.severity === 'CRITICAL' ? '#ef444430' : evt.severity === 'HIGH' ? '#f9731630' : evt.severity === 'MEDIUM' ? '#eab30830' : '#22c55e20'}`,
-                    fontSize: 12
-                  }}>
-                    <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: 10 }}>
-                      {evt.timestamp?.slice(11, 19)}
-                    </span>
-                    <span>
-                      <span style={{ fontWeight: 600 }}>{evt.sender_id}</span>
-                      <span style={{ color: 'var(--text-muted)' }}> → {evt.receiver_id}</span>
-                    </span>
-                    <span style={{ fontWeight: 700, color: evt.risk_score >= 75 ? '#ef4444' : evt.risk_score >= 45 ? '#f97316' : '#22c55e' }}>
-                      ₹{Number(evt.amount).toLocaleString('en-IN')}
-                    </span>
-                    <span style={{ color: 'var(--text-secondary)' }}>{evt.channel}</span>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 12, textAlign: 'center', fontWeight: 700, fontSize: 11,
-                      background: evt.severity === 'CRITICAL' ? '#ef4444' : evt.severity === 'HIGH' ? '#f97316' : evt.severity === 'MEDIUM' ? '#eab308' : '#22c55e',
-                      color: 'white'
-                    }}>
-                      {evt.severity}
-                    </span>
+        <div className="relative z-10">
+          {activeTab === 'pipeline' && (
+            <div className="max-w-7xl mx-auto">
+              {/* Top System Bar */}
+              <header className="flex justify-between items-center mb-8 glass-card rounded-2xl p-4 border border-outline-variant shadow-sm backdrop-blur-md">
+                <div>
+                  <h1 className="font-headline text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-fixed">
+                    <DecryptedText
+                      text="Pipeline Engine"
+                      speed={150}
+                      maxIterations={15}
+                      animateOn="view"
+                      revealDirection="start"
+                      sequential={true}
+                    />
+                  </h1>
+                  <p className="text-on-surface-variant font-medium mt-1">
+                    <DecryptedText
+                      text="Cross-Channel Data Synthesis & GNN Training"
+                      speed={120}
+                      maxIterations={10}
+                      animateOn="view"
+                      revealDirection="start"
+                      sequential={true}
+                    />
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 bg-surface-container-low px-4 py-2 rounded-xl border border-outline-variant/30">
+                  <div className="text-right">
+                    <div className="text-xs text-on-surface-variant font-bold uppercase tracking-wider">Backend Status</div>
+                    <div className="text-sm font-mono font-medium text-primary">Connected</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                  <span className="material-symbols-outlined text-primary text-3xl">dns</span>
+                </div>
+              </header>
 
-      {/* ── SAR Report Tab ── */}
-      {activeTab === 'sar' && (
-        <div className="tab-content">
-          <div className="section-card">
-            <div className="section-header">
-              <h2 className="section-title">📋 FIU-IND Suspicious Activity Report</h2>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-primary" onClick={fetchSAR}>
-                  {sarReport ? '🔄 Regenerate SAR' : '📋 Generate SAR'}
+              {/* Global Action Bar */}
+              <div className="flex gap-4 mb-8">
+                <button
+                  onClick={runFullPipeline}
+                  disabled={loading}
+                  className="bg-primary text-on-primary hover:bg-primary-fixed hover:text-on-primary-fixed font-bold py-4 px-8 rounded-2xl shadow-lg transition-all flex items-center gap-3 text-lg border border-transparent disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {loading && <span className="material-symbols-outlined animate-spin">refresh</span>}
+                  {loading ? 'Running...' : 'Run Full Pipeline'}
                 </button>
               </div>
-            </div>
-            {!sarReport ? (
-              <div className="empty-state">
-                <div style={{ fontSize: 48 }}>📋</div>
-                <h3>SAR Not Generated</h3>
-                <p>Run the pipeline first, then click "Generate SAR" to produce a FIU-IND compliant Suspicious Activity Report.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Report Header */}
-                <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Suspicious Activity Report</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'white', marginTop: 4 }}>
-                        {sarReport.report_header?.sar_reference_number}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-                        {sarReport.report_header?.generated_at?.slice(0, 10)} · {sarReport.report_header?.reporting_entity}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{
-                        padding: '6px 16px', borderRadius: 20, fontWeight: 700, fontSize: 13,
-                        background: sarReport.executive_summary?.priority_level === 'CRITICAL' ? '#ef4444' : '#f97316',
-                        color: 'white'
-                      }}>
-                        {sarReport.executive_summary?.priority_level}
+
+              {/* Pipeline Stages (Bento Grid) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Stage 1: Generate Data */}
+                <div className={`glass-card rounded-3xl p-6 border ${pipelineState.generated ? 'border-primary shadow-primary/20' : 'border-outline-variant'} shadow-sm relative overflow-hidden group hover:border-primary transition-colors flex flex-col justify-between h-56`}>
+                  <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-2xl transition-all ${pipelineState.generated ? 'bg-primary/20' : 'bg-primary/5 group-hover:bg-primary/10'}`}></div>
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`material-symbols-outlined text-3xl ${pipelineState.generated ? 'text-primary' : 'text-on-surface-variant'}`}>data_object</span>
+                      <span className="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                        {pipelineState.generated ? 'Done' : 'Stage 1'}
                       </span>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
-                        Confidence: {sarReport.executive_summary?.overall_risk_confidence_score}% ({sarReport.executive_summary?.overall_risk_confidence_label})
+                    </div>
+                    <h3 className="font-headline text-xl font-bold mb-1">Data Synthesis</h3>
+                    <p className="text-sm text-on-surface-variant">Synthetic transactions</p>
+                  </div>
+                  <button
+                    onClick={runGenerate}
+                    disabled={loading}
+                    className="mt-4 w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-outline-variant disabled:opacity-50 cursor-pointer"
+                  >
+                    {pipelineState.generated ? <span className="material-symbols-outlined text-lg text-primary">check_circle</span> : <span className="material-symbols-outlined text-lg">play_arrow</span>}
+                    Generate Data
+                  </button>
+                </div>
+
+                {/* Stage 2: Build Graph */}
+                <div className={`glass-card rounded-3xl p-6 border ${pipelineState.ingested ? 'border-primary shadow-primary/20' : 'border-outline-variant'} shadow-sm relative overflow-hidden group hover:border-primary transition-colors flex flex-col justify-between h-56`}>
+                  <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-2xl transition-all ${pipelineState.ingested ? 'bg-primary/20' : 'bg-primary/5 group-hover:bg-primary/10'}`}></div>
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`material-symbols-outlined text-3xl ${pipelineState.ingested ? 'text-primary' : 'text-on-surface-variant'}`}>account_tree</span>
+                      <span className="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                        {pipelineState.ingested ? 'Done' : 'Stage 2'}
+                      </span>
+                    </div>
+                    <h3 className="font-headline text-xl font-bold mb-1">Build Graph</h3>
+                    <p className="text-sm text-on-surface-variant">Unified entity graph</p>
+                  </div>
+                  <button
+                    onClick={runIngest}
+                    disabled={loading || !pipelineState.generated}
+                    className="mt-4 w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-outline-variant disabled:opacity-50 cursor-pointer"
+                  >
+                    {pipelineState.ingested ? <span className="material-symbols-outlined text-lg text-primary">check_circle</span> : <span className="material-symbols-outlined text-lg">play_arrow</span>}
+                    Build Graph
+                  </button>
+                </div>
+
+                {/* Stage 3: Train GNN */}
+                <div className={`glass-card rounded-3xl p-6 border ${pipelineState.trained ? 'border-primary shadow-primary/20' : 'border-outline-variant'} shadow-sm relative overflow-hidden group hover:border-primary transition-colors flex flex-col justify-between h-56`}>
+                  <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-2xl transition-all ${pipelineState.trained ? 'bg-primary/20' : 'bg-primary/5 group-hover:bg-primary/10'}`}></div>
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`material-symbols-outlined text-3xl ${pipelineState.trained ? 'text-primary' : 'text-on-surface-variant'}`}>model_training</span>
+                      <span className="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                        {pipelineState.trained ? 'Done' : 'Stage 3'}
+                      </span>
+                    </div>
+                    <h3 className="font-headline text-xl font-bold mb-1">Train Model</h3>
+                    <p className="text-sm text-on-surface-variant">Train GraphSAGE + GAT embeddings.</p>
+                  </div>
+                  <button
+                    onClick={runTrain}
+                    disabled={loading || !pipelineState.ingested}
+                    className="mt-4 w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-outline-variant disabled:opacity-50 cursor-pointer"
+                  >
+                    {pipelineState.trained ? <span className="material-symbols-outlined text-lg text-primary">check_circle</span> : <span className="material-symbols-outlined text-lg">play_arrow</span>}
+                    Train Model
+                  </button>
+                </div>
+
+                {/* Stage 4: Analyze Risk */}
+                <div className={`glass-card rounded-3xl p-6 border ${pipelineState.analyzed ? 'border-primary shadow-primary/20' : 'border-outline-variant'} shadow-sm relative overflow-hidden group hover:border-primary transition-colors flex flex-col justify-between h-56`}>
+                  <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full blur-2xl transition-all ${pipelineState.analyzed ? 'bg-primary/20' : 'bg-primary/5 group-hover:bg-primary/10'}`}></div>
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`material-symbols-outlined text-3xl ${pipelineState.analyzed ? 'text-primary' : 'text-on-surface-variant'}`}>radar</span>
+                      <span className="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                        {pipelineState.analyzed ? 'Done' : 'Stage 4'}
+                      </span>
+                    </div>
+                    <h3 className="font-headline text-xl font-bold mb-1">Analyze Risk</h3>
+                    <p className="text-sm text-on-surface-variant">Detect clusters and score entities.</p>
+                  </div>
+                  <button
+                    onClick={runAnalyze}
+                    disabled={loading || !pipelineState.trained}
+                    className="mt-4 w-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-outline-variant disabled:opacity-50 cursor-pointer"
+                  >
+                    {pipelineState.analyzed ? <span className="material-symbols-outlined text-lg text-primary">check_circle</span> : <span className="material-symbols-outlined text-lg">play_arrow</span>}
+                    Analyze Risk
+                  </button>
+                </div>
+              </div>
+
+              {/* Analysis Results */}
+              {(stats || trainingResults || riskDist) && (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+
+                  {/* Risk Distribution */}
+                  <div className="glass-card rounded-2xl p-6 border border-outline-variant shadow-sm flex flex-col justify-between lg:col-span-3">
+                    <h3 className="font-headline font-semibold text-lg mb-4 text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-secondary">balance</span>
+                      Risk Categories
+                    </h3>
+                    <div className="flex justify-between items-end h-full mt-4 gap-4">
+                      {(() => {
+                        if (!riskDist) {
+                          return (
+                            <>
+                              <div className="w-full flex flex-col items-center gap-2">
+                                <div className="w-full bg-error/20 rounded-t-lg h-24 relative border-b-2 border-error"></div>
+                                <div className="text-xs font-mono text-on-surface-variant uppercase">ESCALATE</div>
+                              </div>
+                              <div className="w-full flex flex-col items-center gap-2">
+                                <div className="w-full bg-tertiary-container/50 rounded-t-lg h-16 relative border-b-2 border-tertiary"></div>
+                                <div className="text-xs font-mono text-on-surface-variant uppercase">FREEZE</div>
+                              </div>
+                              <div className="w-full flex flex-col items-center gap-2">
+                                <div className="w-full bg-primary-container/50 rounded-t-lg h-10 relative border-b-2 border-primary"></div>
+                                <div className="text-xs font-mono text-on-surface-variant uppercase">MONITOR</div>
+                              </div>
+                              <div className="w-full flex flex-col items-center gap-2">
+                                <div className="w-full bg-surface-container-highest rounded-t-lg h-10 relative border-b-2 border-outline"></div>
+                                <div className="text-xs font-mono text-on-surface-variant uppercase">CLEAR</div>
+                              </div>
+                            </>
+                          );
+                        }
+                        const maxCount = Math.max(riskDist.escalate || 0, riskDist.freeze || 0, riskDist.monitor || 0, riskDist.clear || 0, 1);
+                        return (
+                          <>
+                            <div className="w-full flex flex-col items-center gap-2">
+                              <div className="text-lg font-mono text-error font-bold">{riskDist.escalate || 0}</div>
+                              <div className="w-full bg-error/20 rounded-t-lg relative border-b-2 border-error transition-all" style={{ height: `${Math.max((riskDist.escalate / maxCount) * 120, 10)}px` }}></div>
+                              <div className="text-xs font-mono text-on-surface-variant uppercase">ESCALATE</div>
+                            </div>
+                            <div className="w-full flex flex-col items-center gap-2">
+                              <div className="text-lg font-mono text-tertiary font-bold">{riskDist.freeze || 0}</div>
+                              <div className="w-full bg-tertiary-container/50 rounded-t-lg relative border-b-2 border-tertiary transition-all" style={{ height: `${Math.max((riskDist.freeze / maxCount) * 120, 10)}px` }}></div>
+                              <div className="text-xs font-mono text-on-surface-variant uppercase">FREEZE</div>
+                            </div>
+                            <div className="w-full flex flex-col items-center gap-2">
+                              <div className="text-lg font-mono text-primary font-bold">{riskDist.monitor || 0}</div>
+                              <div className="w-full bg-primary-container/50 rounded-t-lg relative border-b-2 border-primary transition-all" style={{ height: `${Math.max((riskDist.monitor / maxCount) * 120, 10)}px` }}></div>
+                              <div className="text-xs font-mono text-on-surface-variant uppercase">MONITOR</div>
+                            </div>
+                            <div className="w-full flex flex-col items-center gap-2">
+                              <div className="text-lg font-mono text-secondary font-bold">{riskDist.clear || 0}</div>
+                              <div className="w-full bg-surface-container-highest rounded-t-lg relative border-b-2 border-outline transition-all" style={{ height: `${Math.max((riskDist.clear / maxCount) * 120, 10)}px` }}></div>
+                              <div className="text-xs font-mono text-on-surface-variant uppercase">CLEAR</div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Training Metrics */}
+                  <div className="glass-card rounded-2xl p-6 border border-outline-variant shadow-sm flex flex-col justify-between lg:col-span-1">
+                    <h3 className="font-headline font-semibold text-lg mb-4 text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-tertiary">monitoring</span>
+                      Performance
+                    </h3>
+                    <div className="flex flex-col gap-3">
+                      <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50 flex justify-between items-center">
+                        <div className="text-xs text-on-surface-variant font-mono">AUC-ROC</div>
+                        <div className="text-lg font-bold text-tertiary">
+                          {trainingResults ? (trainingResults.best_val_auc || 0).toFixed(4) : '--'}
+                        </div>
+                      </div>
+                      <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50 flex justify-between items-center">
+                        <div className="text-xs text-on-surface-variant font-mono">TEST F1</div>
+                        <div className="text-lg font-bold text-tertiary">
+                          {trainingResults ? (trainingResults.test_metrics?.f1 || 0).toFixed(4) : '--'}
+                        </div>
+                      </div>
+                      {trainingResults && (
+                        <>
+                          <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50 flex justify-between items-center">
+                            <div className="text-xs text-on-surface-variant font-mono">PRECISION</div>
+                            <div className="text-lg font-bold text-tertiary">{(trainingResults.test_metrics?.precision || 0).toFixed(4)}</div>
+                          </div>
+                          <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/50 flex justify-between items-center">
+                            <div className="text-xs text-on-surface-variant font-mono">RECALL</div>
+                            <div className="text-lg font-bold text-tertiary">{(trainingResults.test_metrics?.recall || 0).toFixed(4)}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Graph Metrics */}
+                  <div className="glass-card rounded-2xl p-6 border border-outline-variant shadow-sm flex flex-col justify-between lg:col-span-1">
+                    <h3 className="font-headline font-semibold text-lg mb-4 text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary">hub</span>
+                      Graph Topology
+                    </h3>
+                    <div className="flex flex-col gap-4">
+                      <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/50 flex flex-col justify-center">
+                        <div className="text-sm text-on-surface-variant font-mono mb-1">NODES</div>
+                        <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-fixed">
+                          {stats ? (stats.nx_nodes || 0).toLocaleString() : '--'}
+                        </div>
+                      </div>
+                      <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/50 flex flex-col justify-center">
+                        <div className="text-sm text-on-surface-variant font-mono mb-1">EDGES</div>
+                        <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-fixed">
+                          {stats ? (stats.nx_edges || 0).toLocaleString() : '--'}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Executive Summary */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-                  {[
-                    { label: 'Accounts Analyzed', value: sarReport.executive_summary?.total_accounts_analyzed },
-                    { label: 'Mule Accounts', value: sarReport.executive_summary?.mule_accounts_flagged, color: '#ef4444' },
-                    { label: 'Ring Clusters', value: sarReport.executive_summary?.mule_ring_clusters_detected, color: '#f97316' },
-                    { label: 'Crime Patterns', value: sarReport.executive_summary?.financial_crime_patterns_detected, color: '#eab308' },
-                    { label: 'Sanctions Alerts', value: sarReport.executive_summary?.sanctions_alerts, color: '#8b5cf6' },
-                  ].map(s => (
-                    <div key={s.label} className="stat-card">
-                      <div className="stat-value" style={{ color: s.color || 'var(--text-primary)' }}>{s.value ?? '—'}</div>
-                      <div className="stat-label">{s.label}</div>
+                </div>
+              )}
+
+              {/* Terminal Log */}
+              <div className="rounded-2xl overflow-hidden shadow-xl border border-outline-variant">
+                <div className="bg-inverse-surface text-inverse-on-surface px-4 py-3 flex justify-between items-center border-b border-surface-variant/20">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-sm text-primary-fixed">terminal</span>
+                    <span className="font-mono text-sm tracking-wider">system_log.stdout</span>
+                  </div>
+                  <div className="flex gap-4 items-center">
+                    <button onClick={() => setLogs([])} className="text-xs text-inverse-on-surface/60 hover:text-white transition-colors">Clear</button>
+                    <div className="flex gap-2">
+                      <div className="w-3 h-3 rounded-full bg-surface-variant/30"></div>
+                      <div className="w-3 h-3 rounded-full bg-surface-variant/30"></div>
+                      <div className="w-3 h-3 rounded-full bg-surface-variant/30"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-[#1e1e1e] p-6 h-64 overflow-y-auto font-mono text-sm text-gray-300 leading-relaxed custom-scrollbar" ref={logRef}>
+                  {logs.length === 0 && (
+                    <div className="flex text-primary-fixed mb-2">
+                      <span className="mr-2">❯</span>
+                      <span>System initialized. Waiting for pipeline execution...</span>
+                    </div>
+                  )}
+                  {logs.map((log, i) => (
+                    <div key={i} className={`flex mb-1 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-green-400' : 'text-gray-400'}`}>
+                      <span className="mr-2 text-primary-fixed">❯</span>
+                      <span>{log.msg}</span>
                     </div>
                   ))}
                 </div>
+              </div>
 
-                {/* Recommended Actions */}
-                <div style={{ background: 'var(--surface-elevated)', borderRadius: 10, padding: 16 }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-secondary)' }}>📌 Recommended Regulatory Actions</h3>
-                  <ul style={{ margin: 0, padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {sarReport.executive_summary?.recommended_regulatory_actions?.map((a, i) => (
-                      <li key={i} style={{ fontSize: 13, color: 'var(--text-primary)' }}>{a}</li>
-                    ))}
-                  </ul>
+            </div>
+          )}
+
+          {/* ═══ Graph Tab ═══ */}
+          {activeTab === 'graph' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h2 className="section-title">🔗 Unified Entity Graph</h2>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {graphData && (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      Showing {graphData.showing_nodes}/{graphData.total_nodes_in_graph} nodes •{' '}
+                      {graphData.showing_links}/{graphData.total_edges_in_graph} edges
+                    </span>
+                  )}
+                  <button className="btn btn-primary btn-sm" onClick={fetchGraphData}
+                    disabled={graphLoading || !pipelineState.ingested}>
+                    {graphLoading ? <span className="spinner" /> : '🔄'} Load Graph
+                  </button>
                 </div>
+              </div>
 
-                {/* Suspicious Subjects */}
-                {sarReport.suspicious_subjects?.length > 0 && (
-                  <div>
-                    <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 10 }}>🚨 Suspicious Subjects ({sarReport.suspicious_subjects.length})</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {sarReport.suspicious_subjects.slice(0, 10).map((subj, i) => (
-                        <div key={i} className="account-card" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
-                          <div>
-                            <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>{subj.subject_reference}</div>
-                            <div style={{ fontSize: 13, marginTop: 4 }}>
-                              Activity: <strong>{subj.suspicious_activity_types?.join(', ')}</strong>
-                              {subj.sanctions_alert && <span style={{ marginLeft: 8, color: '#ef4444', fontWeight: 700 }}>⚠️ SANCTIONS HIT</span>}
+              {/* Legend */}
+              <div style={{
+                display: 'flex', gap: 20, marginBottom: 16, padding: '10px 16px',
+                background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)', flexWrap: 'wrap', fontSize: 12
+              }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>NODES:</span>
+                {[
+                  { label: 'Account', color: '#3b82f6' },
+                  { label: 'Mule Account', color: '#f43f5e' },
+                  { label: 'Device', color: '#10b981' },
+                  { label: 'IP Address', color: '#a78bfa' },
+                  { label: 'ATM', color: '#f59e0b' },
+                ].map(item => (
+                  <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: item.color, display: 'inline-block'
+                    }} />
+                    {item.label}
+                  </span>
+                ))}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginLeft: 12 }}>EDGES:</span>
+                {[
+                  { label: 'Transfer', color: 'rgba(59, 130, 246, 0.4)' },
+                  { label: 'Suspicious', color: 'rgba(244, 63, 94, 0.7)' },
+                  { label: 'Device/IP', color: 'rgba(148, 163, 184, 0.2)' },
+                ].map(item => (
+                  <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{
+                      width: 16, height: 3, borderRadius: 2,
+                      background: item.color, display: 'inline-block'
+                    }} />
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+
+              {!graphData ? (
+                <div className="empty-state" style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border-subtle)' }}>
+                  <div className="empty-state-icon">🔗</div>
+                  <div className="empty-state-title">Graph Not Loaded</div>
+                  <div className="empty-state-desc">
+                    {pipelineState.ingested
+                      ? 'Click "Load Graph" to visualize the Unified Entity Graph.'
+                      : 'Run the pipeline first (at least Generate + Build Graph).'}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)',
+                  overflow: 'hidden', background: '#f0f4f8', position: 'relative'
+                }}>
+                  {hoveredNode && (
+                    <div style={{
+                      position: 'absolute', top: 12, left: 12, zIndex: 10,
+                      background: 'rgba(255, 255, 255, 0.95)', border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)', padding: '12px 16px',
+                      fontSize: 12, color: 'var(--text-primary)', minWidth: 200,
+                      backdropFilter: 'blur(8px)', boxShadow: 'var(--shadow-card-hover)'
+                    }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, marginBottom: 6, color: 'var(--accent-blue-dark)' }}>
+                        {hoveredNode.id}
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Type: {hoveredNode.entity_type}</div>
+                      {hoveredNode.entity_type === 'Account' && (
+                        <>
+                          <div>Mule: {hoveredNode.is_mule ? '🚨 Yes' : '✅ No'}</div>
+                          {hoveredNode.risk_score > 0 && (
+                            <div style={{ color: hoveredNode.risk_score >= 0.85 ? 'var(--color-danger)' : 'var(--text-secondary)' }}>
+                              Risk: {(hoveredNode.risk_score * 100).toFixed(1)}%
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                              Filing: {subj.regulatory_filing}
+                          )}
+                          {hoveredNode.cluster_id && (
+                            <div style={{ color: 'var(--color-danger)' }}>Cluster: {hoveredNode.cluster_id}</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <ForceGraph2D
+                    ref={graphRef}
+                    graphData={{ nodes: graphData.nodes, links: graphData.links }}
+                    width={1380}
+                    height={650}
+                    backgroundColor="#f0f4f8"
+                    nodeRelSize={4}
+                    nodeVal={node => {
+                      if (node.entity_type === 'Account') return node.is_mule ? 6 : 3
+                      return 2
+                    }}
+                    nodeColor={node => {
+                      if (node.entity_type === 'Account') {
+                        if (node.is_mule) return '#f43f5e'
+                        if (node.risk_score >= 0.6) return '#f59e0b'
+                        return '#3b82f6'
+                      }
+                      if (node.entity_type === 'Device') return '#10b981'
+                      if (node.entity_type === 'IPAddress') return '#a78bfa'
+                      if (node.entity_type === 'ATMTerminal') return '#f59e0b'
+                      return '#64748b'
+                    }}
+                    nodeCanvasObjectMode={() => 'after'}
+                    nodeCanvasObject={(node, ctx, globalScale) => {
+                      if (node.entity_type !== 'Account' || globalScale < 1.5) return
+                      const label = node.id.replace('ACC-', '')
+                      const fontSize = 10 / globalScale
+                      ctx.font = `${fontSize}px JetBrains Mono, monospace`
+                      ctx.textAlign = 'center'
+                      ctx.textBaseline = 'middle'
+                      ctx.fillStyle = 'rgba(26, 35, 50, 0.7)'
+                      ctx.fillText(label, node.x, node.y + 8 / globalScale)
+                    }}
+                    linkColor={link => {
+                      if (link.is_suspicious) return 'rgba(244, 63, 94, 0.6)'
+                      if (link.edge_type === 'TRANSFERRED_TO') return 'rgba(59, 130, 246, 0.3)'
+                      return 'rgba(148, 163, 184, 0.1)'
+                    }}
+                    linkWidth={link => {
+                      if (link.is_suspicious) return 1.5
+                      if (link.edge_type === 'TRANSFERRED_TO') return 0.8
+                      return 0.3
+                    }}
+                    linkDirectionalArrowLength={link => link.edge_type === 'TRANSFERRED_TO' ? 3 : 0}
+                    linkDirectionalArrowRelPos={1}
+                    onNodeHover={node => setHoveredNode(node || null)}
+                    onNodeClick={node => {
+                      if (node.entity_type === 'Account') {
+                        fetchExplanation(node.id)
+                        setActiveTab('xai')
+                      }
+                    }}
+                    cooldownTicks={100}
+                    d3AlphaDecay={0.02}
+                    d3VelocityDecay={0.3}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ Accounts Tab ═══ */}
+          {activeTab === 'accounts' && (
+            <div>
+              <h2 className="section-title">👤 Account Risk Scores</h2>
+              {accounts.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🔍</div>
+                  <div className="empty-state-title">No Data Available</div>
+                  <div className="empty-state-desc">Run the pipeline first to generate risk scores.</div>
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Account ID</th>
+                        <th>Risk Score</th>
+                        <th>Action</th>
+                        <th>Flagged</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accounts.slice(0, 50).map(acc => (
+                        <tr key={acc.account_id}>
+                          <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                            {acc.account_id}
+                          </td>
+                          <td>
+                            <div className="risk-bar-container">
+                              <span className="risk-score" style={{ color: getRiskColor(acc.mule_probability) }}>
+                                {(acc.mule_probability * 100).toFixed(1)}%
+                              </span>
+                              <div className="risk-bar">
+                                <div className={`risk-bar-fill ${getRiskLevel(acc.mule_probability)}`}
+                                  style={{ width: `${acc.mule_probability * 100}%` }} />
+                              </div>
                             </div>
+                          </td>
+                          <td>
+                            <span className={`risk-badge ${getActionClass(acc.recommended_action)}`}>
+                              {acc.recommended_action}
+                            </span>
+                          </td>
+                          <td>{acc.is_flagged ? '🚨' : '✅'}</td>
+                          <td>
+                            <button className="btn btn-sm btn-secondary"
+                              onClick={() => { fetchExplanation(acc.account_id); setActiveTab('xai') }}>
+                              🧠 Explain
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ Clusters Tab ═══ */}
+          {activeTab === 'clusters' && (
+            <div>
+              <h2 className="section-title">🕸️ Detected Mule Ring Clusters</h2>
+              {clusters.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🕸️</div>
+                  <div className="empty-state-title">No Clusters Detected</div>
+                  <div className="empty-state-desc">Run analysis to detect mule ring clusters.</div>
+                </div>
+              ) : (
+                <div className="clusters-grid">
+                  {clusters.map(cluster => (
+                    <div key={cluster.cluster_id} className="cluster-card">
+                      <div className="cluster-header">
+                        <span className="cluster-id">{cluster.cluster_id}</span>
+                        <span className="risk-badge escalate">
+                          {(cluster.avg_risk_score * 100).toFixed(1)}% Risk
+                        </span>
+                      </div>
+                      <div className="cluster-metrics">
+                        <div className="cluster-metric">
+                          <span className="cluster-metric-label">Members</span>
+                          <span className="cluster-metric-value" style={{ color: 'var(--accent-blue)' }}>
+                            {cluster.size}
+                          </span>
+                        </div>
+                        <div className="cluster-metric">
+                          <span className="cluster-metric-label">Density</span>
+                          <span className="cluster-metric-value" style={{ color: 'var(--accent-purple)' }}>
+                            {(cluster.density || 0).toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="cluster-metric">
+                          <span className="cluster-metric-label">Volume</span>
+                          <span className="cluster-metric-value" style={{ color: 'var(--color-warning)' }}>
+                            ₹{((cluster.total_volume || 0) / 1000).toFixed(1)}K
+                          </span>
+                        </div>
+                        <div className="cluster-metric">
+                          <span className="cluster-metric-label">Avg Velocity</span>
+                          <span className="cluster-metric-value" style={{ color: 'var(--color-danger)' }}>
+                            {((cluster.avg_velocity_seconds || 0) / 60).toFixed(1)}m
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <strong>Hub:</strong>{' '}
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", color: 'var(--color-danger)' }}>
+                          {cluster.hub_account}
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <strong>Channels:</strong> {(cluster.channels_used || []).join(', ')}
+                      </div>
+                      <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {(cluster.members || []).slice(0, 8).map(m => (
+                          <span key={m} style={{
+                            padding: '2px 8px', background: '#fef2f2',
+                            border: '1px solid #fecaca', borderRadius: 6,
+                            fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                            color: '#dc2626', cursor: 'pointer'
+                          }}
+                            onClick={() => { fetchExplanation(m); setActiveTab('xai') }}>
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ XAI Tab ═══ */}
+          {activeTab === 'xai' && (
+            <div>
+              <h2 className="section-title">🧠 Explainable AI Auditor</h2>
+              {!explanation ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🧠</div>
+                  <div className="empty-state-title">No Explanation Selected</div>
+                  <div className="empty-state-desc">
+                    Click "Explain" on an account from the Accounts tab, or click an account in a cluster.
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="explanation-panel">
+                    <div className="explanation-header">
+                      <span className="explanation-account" style={{ color: 'var(--accent-blue-dark)' }}>
+                        {explanation.account_id}
+                      </span>
+                      <span className="risk-score" style={{
+                        color: getRiskColor(explanation.confidence_score),
+                        fontSize: 24
+                      }}>
+                        {(explanation.confidence_score * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <div style={{
+                      padding: 16, background: 'var(--bg-tinted)',
+                      borderRadius: 'var(--radius-sm)', marginBottom: 20,
+                      fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)'
+                    }}>
+                      {explanation.xai_reasoning}
+                    </div>
+
+                    <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)' }}>
+                      FEATURE ATTRIBUTIONS
+                    </h3>
+                    <div className="feature-bars">
+                      {(explanation.feature_attributions || []).map(feat => (
+                        <div key={feat.name} className="feature-bar-row">
+                          <span className="feature-bar-label">{feat.name.replace(/_/g, ' ')}</span>
+                          <div className="feature-bar-track">
+                            <div className="feature-bar-fill"
+                              style={{ width: `${feat.importance * 100}%` }} />
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: subj.risk_score >= 80 ? '#ef4444' : '#f97316', fontSize: 20 }}>
-                              {subj.risk_score}%
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{subj.recommended_action}</div>
-                          </div>
+                          <span className="feature-bar-value">{(feat.importance * 100).toFixed(1)}%</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+          )}
 
-                {/* Regulatory Framework */}
-                <div style={{ background: 'var(--surface-elevated)', borderRadius: 10, padding: 16 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)' }}>📜 Regulatory Framework</h3>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {sarReport.report_header?.regulatory_framework?.map((r, i) => (
-                      <span key={i} style={{ background: '#1e293b', border: '1px solid #334155', padding: '3px 10px', borderRadius: 12, fontSize: 11, color: '#94a3b8' }}>
-                        {r}
+          {/* ═══ Reports Tab ═══ */}
+          {activeTab === 'report' && (
+            <div>
+              <h2 className="section-title">📄 Audit Reports</h2>
+              <div style={{ marginBottom: 20 }}>
+                <button id="btn-generate-report" className="btn btn-primary" onClick={fetchReport}
+                  disabled={!pipelineState.analyzed}>
+                  📄 Generate Full Audit Report
+                </button>
+              </div>
+
+              {!report ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📄</div>
+                  <div className="empty-state-title">No Report Generated</div>
+                  <div className="empty-state-desc">
+                    Run the pipeline and click "Generate Full Audit Report".
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="stats-grid">
+                    <div className="stat-card cyan">
+                      <div className="stat-label">Accounts Analyzed</div>
+                      <div className="stat-value">{report.summary?.total_accounts_analyzed || 0}</div>
+                    </div>
+                    <div className="stat-card rose">
+                      <div className="stat-label">Flagged</div>
+                      <div className="stat-value">{report.summary?.flagged_accounts || 0}</div>
+                    </div>
+                    <div className="stat-card purple">
+                      <div className="stat-label">Clusters</div>
+                      <div className="stat-value">{report.summary?.clusters_detected || 0}</div>
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <div className="card-header">
+                      <span className="card-title">📋 Report JSON</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {report.report_id}
                       </span>
+                    </div>
+                    <div className="log-output" style={{ maxHeight: 500, fontSize: 11 }}>
+                      <pre style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                        {JSON.stringify(report, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer */}
+
+          {/* ── Live Feed Tab ── */}
+          {activeTab === 'livefeed' && (
+            <div className="tab-content">
+              <div className="section-card">
+                <div className="section-header">
+                  <h2 className="section-title">📡 Real-Time Transaction Feed</h2>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: liveConnected ? '#22c55e' : '#6b7280', display: 'inline-block' }} />
+                      {liveConnected ? 'LIVE' : 'Disconnected'}
+                    </span>
+                    {!liveConnected
+                      ? <button className="btn btn-primary" onClick={startLiveFeed}>▶ Start Feed</button>
+                      : <button className="btn btn-secondary" onClick={stopLiveFeed}>⏹ Stop</button>
+                    }
+                  </div>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+                  Live UPI/ATM/NEFT/RTGS transactions scored in real-time by the rule engine. Color-coded by risk level.
+                </p>
+                {liveEvents.length === 0 ? (
+                  <div className="empty-state">
+                    <div style={{ fontSize: 48 }}>📡</div>
+                    <h3>Feed Not Started</h3>
+                    <p>Click "Start Feed" to begin streaming live transaction events.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 600, overflowY: 'auto' }}>
+                    {liveEvents.map((evt, i) => (
+                      <div key={i} style={{
+                        display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 90px', gap: 10,
+                        alignItems: 'center', padding: '10px 14px', borderRadius: 8,
+                        background: evt.severity === 'CRITICAL' ? '#ef444410' : evt.severity === 'HIGH' ? '#f9731610' : evt.severity === 'MEDIUM' ? '#eab30810' : '#22c55e08',
+                        border: `1px solid ${evt.severity === 'CRITICAL' ? '#ef444430' : evt.severity === 'HIGH' ? '#f9731630' : evt.severity === 'MEDIUM' ? '#eab30830' : '#22c55e20'}`,
+                        fontSize: 12
+                      }}>
+                        <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: 10 }}>
+                          {evt.timestamp?.slice(11, 19)}
+                        </span>
+                        <span>
+                          <span style={{ fontWeight: 600 }}>{evt.sender_id}</span>
+                          <span style={{ color: 'var(--text-muted)' }}> → {evt.receiver_id}</span>
+                        </span>
+                        <span style={{ fontWeight: 700, color: evt.risk_score >= 75 ? '#ef4444' : evt.risk_score >= 45 ? '#f97316' : '#22c55e' }}>
+                          ₹{Number(evt.amount).toLocaleString('en-IN')}
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{evt.channel}</span>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 12, textAlign: 'center', fontWeight: 700, fontSize: 11,
+                          background: evt.severity === 'CRITICAL' ? '#ef4444' : evt.severity === 'HIGH' ? '#f97316' : evt.severity === 'MEDIUM' ? '#eab308' : '#22c55e',
+                          color: 'white'
+                        }}>
+                          {evt.severity}
+                        </span>
+                      </div>
                     ))}
                   </div>
-                  <p style={{ margin: '14px 0 0', fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
-                    {sarReport.report_header?.classification}
-                  </p>
-                </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* ── SAR Report Tab ── */}
+          {activeTab === 'sar' && (
+            <div className="tab-content">
+              <div className="section-card">
+                <div className="section-header">
+                  <h2 className="section-title">📋 FIU-IND Suspicious Activity Report</h2>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={fetchSAR}>
+                      {sarReport ? '🔄 Regenerate SAR' : '📋 Generate SAR'}
+                    </button>
+                  </div>
+                </div>
+                {!sarReport ? (
+                  <div className="empty-state">
+                    <div style={{ fontSize: 48 }}>📋</div>
+                    <h3>SAR Not Generated</h3>
+                    <p>Run the pipeline first, then click "Generate SAR" to produce a FIU-IND compliant Suspicious Activity Report.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {/* Report Header */}
+                    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 10, padding: 20 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Suspicious Activity Report</div>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: 'white', marginTop: 4 }}>
+                            {sarReport.report_header?.sar_reference_number}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                            {sarReport.report_header?.generated_at?.slice(0, 10)} · {sarReport.report_header?.reporting_entity}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{
+                            padding: '6px 16px', borderRadius: 20, fontWeight: 700, fontSize: 13,
+                            background: sarReport.executive_summary?.priority_level === 'CRITICAL' ? '#ef4444' : '#f97316',
+                            color: 'white'
+                          }}>
+                            {sarReport.executive_summary?.priority_level}
+                          </span>
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
+                            Confidence: {sarReport.executive_summary?.overall_risk_confidence_score}% ({sarReport.executive_summary?.overall_risk_confidence_label})
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Executive Summary */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                      {[
+                        { label: 'Accounts Analyzed', value: sarReport.executive_summary?.total_accounts_analyzed },
+                        { label: 'Mule Accounts', value: sarReport.executive_summary?.mule_accounts_flagged, color: '#ef4444' },
+                        { label: 'Ring Clusters', value: sarReport.executive_summary?.mule_ring_clusters_detected, color: '#f97316' },
+                        { label: 'Crime Patterns', value: sarReport.executive_summary?.financial_crime_patterns_detected, color: '#eab308' },
+                        { label: 'Sanctions Alerts', value: sarReport.executive_summary?.sanctions_alerts, color: '#8b5cf6' },
+                      ].map(s => (
+                        <div key={s.label} className="stat-card">
+                          <div className="stat-value" style={{ color: s.color || 'var(--text-primary)' }}>{s.value ?? '—'}</div>
+                          <div className="stat-label">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Recommended Actions */}
+                    <div style={{ background: 'var(--surface-elevated)', borderRadius: 10, padding: 16 }}>
+                      <h3 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-secondary)' }}>📌 Recommended Regulatory Actions</h3>
+                      <ul style={{ margin: 0, padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {sarReport.executive_summary?.recommended_regulatory_actions?.map((a, i) => (
+                          <li key={i} style={{ fontSize: 13, color: 'var(--text-primary)' }}>{a}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Suspicious Subjects */}
+                    {sarReport.suspicious_subjects?.length > 0 && (
+                      <div>
+                        <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 10 }}>🚨 Suspicious Subjects ({sarReport.suspicious_subjects.length})</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {sarReport.suspicious_subjects.slice(0, 10).map((subj, i) => (
+                            <div key={i} className="account-card" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>{subj.subject_reference}</div>
+                                <div style={{ fontSize: 13, marginTop: 4 }}>
+                                  Activity: <strong>{subj.suspicious_activity_types?.join(', ')}</strong>
+                                  {subj.sanctions_alert && <span style={{ marginLeft: 8, color: '#ef4444', fontWeight: 700 }}>⚠️ SANCTIONS HIT</span>}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                                  Filing: {subj.regulatory_filing}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 700, color: subj.risk_score >= 80 ? '#ef4444' : '#f97316', fontSize: 20 }}>
+                                  {subj.risk_score}%
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{subj.recommended_action}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Regulatory Framework */}
+                    <div style={{ background: 'var(--surface-elevated)', borderRadius: 10, padding: 16 }}>
+                      <h3 style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)' }}>📜 Regulatory Framework</h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {sarReport.report_header?.regulatory_framework?.map((r, i) => (
+                          <span key={i} style={{ background: '#1e293b', border: '1px solid #334155', padding: '3px 10px', borderRadius: 12, fontSize: 11, color: '#94a3b8' }}>
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                      <p style={{ margin: '14px 0 0', fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
+                        {sarReport.report_header?.classification}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ═══ Intelligence Tab ═══ */}
+          {activeTab === 'intelligence' && (
+            <IntelligenceTab
+              clusters={clusters}
+              fetchClusters={fetchClusters}
+              intelAccount={intelAccount}
+              setIntelAccount={setIntelAccount}
+              intelText={intelText}
+              setIntelText={setIntelText}
+              intelLoading={intelLoading}
+              fetchIntelligence={fetchIntelligence}
+              intelResult={intelResult}
+              nlpText={nlpText}
+              setNlpText={setNlpText}
+              fetchNLP={fetchNLP}
+              nlpResult={nlpResult}
+              metricsData={metricsData}
+              fetchMetrics={fetchMetrics}
+            />
+          )}
+
+          {/* Footer */}
+          <footer style={{
+            padding: '24px 0', marginTop: 40,
+            borderTop: '1px solid var(--border-subtle)',
+            textAlign: 'center', fontSize: 12, color: 'var(--text-muted)'
+          }}>
+            ChainVigil v1.0.0 — Cross-Channel Mule Detection using Graph Intelligence & GNN
+          </footer>
         </div>
-      )}
-
-      {/* ═══ Intelligence Tab ═══ */}
-      {activeTab === 'intelligence' && (
-        <IntelligenceTab
-          clusters={clusters}
-          fetchClusters={fetchClusters}
-          intelAccount={intelAccount}
-          setIntelAccount={setIntelAccount}
-          intelText={intelText}
-          setIntelText={setIntelText}
-          intelLoading={intelLoading}
-          fetchIntelligence={fetchIntelligence}
-          intelResult={intelResult}
-          nlpText={nlpText}
-          setNlpText={setNlpText}
-          fetchNLP={fetchNLP}
-          nlpResult={nlpResult}
-          metricsData={metricsData}
-          fetchMetrics={fetchMetrics}
-        />
-      )}
-
-      {/* Footer */}
-      <footer style={{
-        padding: '24px 0', marginTop: 40,
-        borderTop: '1px solid var(--border-subtle)',
-        textAlign: 'center', fontSize: 12, color: 'var(--text-muted)'
-      }}>
-        ChainVigil v1.0.0 — Cross-Channel Mule Detection using Graph Intelligence & GNN
-      </footer>
+      </main>
     </div>
   )
 }
