@@ -1313,28 +1313,206 @@ function App() {
           {/* ═══ XAI Tab ═══ */}
           {activeTab === 'xai' && (
             <div>
-              <h2 className="section-title">🧠 Explainable AI Auditor</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h2 className="section-title">🧠 Explainable AI Auditor</h2>
+                {explanation && (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setExplanation(null)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    ← Back to List
+                  </button>
+                )}
+              </div>
+
               {!explanation ? (
-                <div className="empty-state">
-                  <div className="empty-state-icon">🧠</div>
-                  <div className="empty-state-title">No Explanation Selected</div>
-                  <div className="empty-state-desc">
-                    Click "Explain" on an account from the Accounts tab, or click an account in a cluster.
+                <div>
+                  {/* List view of all accounts */}
+                  <div className="empty-state" style={{ marginBottom: 24 }}>
+                    <div className="empty-state-icon">🧠</div>
+                    <div className="empty-state-title">No Explanation Selected</div>
+                    <div className="empty-state-desc">
+                      Click "Explain" on an account from the Accounts tab, or click an account in a cluster.
+                    </div>
                   </div>
+
+                  {/* Quick Links Section */}
+                  {accounts.length > 0 && (
+                    <div style={{
+                      padding: 20,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius)',
+                      marginBottom: 24
+                    }}>
+                      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        📋 Quick Access - Recent Accounts
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                        {accounts.slice(0, 12).map(acc => (
+                          <button
+                            key={acc.account_id}
+                            onClick={() => fetchExplanation(acc.account_id)}
+                            style={{
+                              padding: '10px 12px',
+                              background: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: 8,
+                              fontSize: 12,
+                              fontFamily: "'JetBrains Mono', monospace",
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              transition: 'all 0.2s',
+                              textAlign: 'center',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background = '#fecaca'
+                              e.target.style.color = '#7f1d1d'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background = '#fef2f2'
+                              e.target.style.color = '#dc2626'
+                            }}
+                          >
+                            {acc.account_id}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All Accounts Table */}
+                  {accounts.length > 0 && (
+                    <div style={{
+                      padding: 20,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius)'
+                    }}>
+                      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        📊 All Accounts
+                      </h3>
+                      <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                        <table className="table" style={{ fontSize: 13 }}>
+                          <thead>
+                            <tr>
+                              <th>Account ID</th>
+                              <th>Risk Score</th>
+                              <th>Action</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {accounts.slice(0, 20).map(acc => (
+                              <tr key={acc.account_id}>
+                                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                                  {acc.account_id}
+                                </td>
+                                <td>
+                                  <span style={{ color: getRiskColor(acc.mule_probability) }}>
+                                    {(acc.mule_probability * 100).toFixed(1)}%
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`risk-badge ${getActionClass(acc.recommended_action)}`}>
+                                    {acc.recommended_action}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button 
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => fetchExplanation(acc.account_id)}
+                                  >
+                                    🧠 Analyze
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>
                   <div className="explanation-panel">
                     <div className="explanation-header">
-                      <span className="explanation-account" style={{ color: 'var(--accent-blue-dark)' }}>
-                        {explanation.account_id}
-                      </span>
-                      <span className="risk-score" style={{
-                        color: getRiskColor(explanation.confidence_score),
-                        fontSize: 24
-                      }}>
-                        {(explanation.confidence_score * 100).toFixed(1)}%
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                        <span className="explanation-account" style={{ color: 'var(--accent-blue-dark)' }}>
+                          {explanation.account_id}
+                        </span>
+                        <span className="risk-score" style={{
+                          color: getRiskColor(explanation.confidence_score),
+                          fontSize: 24
+                        }}>
+                          {(explanation.confidence_score * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      
+                      {/* Navigation Controls */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {(() => {
+                          const currentIndex = accounts.findIndex(a => a.account_id === explanation.account_id)
+                          const hasPrev = currentIndex > 0
+                          const hasNext = currentIndex < accounts.length - 1
+                          return (
+                            <>
+                              <button
+                                onClick={() => {
+                                  if (hasPrev) {
+                                    fetchExplanation(accounts[currentIndex - 1].account_id)
+                                  }
+                                }}
+                                disabled={!hasPrev}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: hasPrev ? 'var(--accent-blue)' : 'var(--border-subtle)',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  color: hasPrev ? 'white' : 'var(--text-muted)',
+                                  cursor: hasPrev ? 'pointer' : 'not-allowed',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                ← Prev
+                              </button>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                {currentIndex + 1} / {accounts.length}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  if (hasNext) {
+                                    fetchExplanation(accounts[currentIndex + 1].account_id)
+                                  }
+                                }}
+                                disabled={!hasNext}
+                                style={{
+                                  padding: '6px 12px',
+                                  background: hasNext ? 'var(--accent-blue)' : 'var(--border-subtle)',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  color: hasNext ? 'white' : 'var(--text-muted)',
+                                  cursor: hasNext ? 'pointer' : 'not-allowed',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                Next →
+                              </button>
+                            </>
+                          )
+                        })()}
+                      </div>
                     </div>
 
                     <div style={{
