@@ -1,7 +1,6 @@
-# ChainVigil-Cross-Channel-Fraud-Intelligence-System 
+# ChainVigil 🔗⛓
 
-**Cross-Channel Fraud Intelligence System using Graph Intelligence & GNN**
-
+**Cross-Channel Mule Detection using Graph Intelligence & GNN**
 
 A graph-native financial crime detection system that identifies cross-channel money mule networks in near real-time. Integrates multi-source transaction logs (UPI, ATM, Web, Mobile App) into a Unified Entity Graph (UEG) and applies Graph Neural Networks to detect high-velocity fund movement and mule-ring clusters.
 
@@ -50,8 +49,8 @@ Multi-Channel Logs (App / ATM / UPI / Web)
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/rishiwalia08/ChainVigil-Cross-Channel-Fraud-Intelligence-System.git
-cd ChainVigil-Cross-Channel-Fraud-Intelligence-System
+git clone https://github.com/YOUR_USERNAME/Mule-detection.git
+cd Mule-detection
 ```
 
 ### 2. Install Backend Dependencies
@@ -136,6 +135,9 @@ VITE v5.x.x  ready in xxx ms
 | GET    | `/api/explain/{id}`       | XAI explanation for an account       |
 | GET    | `/api/report`             | Generate full audit report           |
 | GET    | `/api/export/anonymized`  | Privacy-preserving anonymized export |
+| **POST** | **`/api/n8n/webhook`**  | **n8n webhook — score a transaction** |
+| **POST** | **`/api/n8n/score`**    | **Direct account fraud scoring**     |
+| **GET**  | **`/api/n8n/alerts`**   | **Recent fraud alert history**       |
 
 ---
 
@@ -173,16 +175,93 @@ ChainVigil includes a built-in anonymization layer for sharing suspicious patter
 
 ---
 
+
+
+
+## 🔗 n8n Fraud Alert Automation
+
+An automated alert pipeline built with [n8n](https://n8n.io/) that wraps ChainVigil's detection engine into a production-ready workflow.
+
+```
+Webhook (Transaction In) → ChainVigil API (Fraud Score) → IF High Risk?
+  ├─ YES → Format Alert → Email/Slack → Log to Google Sheets
+  └─ NO  → Mark as Safe → Log to Google Sheets
+```
+
+### How It Works
+
+1. **Webhook Trigger** — n8n listens for incoming transaction POSTs
+2. **ChainVigil Scoring** — Calls `/api/n8n/webhook` with the transaction payload
+3. **Risk Decision** — IF node checks `alert_triggered` (risk ≥ 0.70)
+4. **Alert Dispatch** — High-risk → formatted email alert with XAI explanation
+5. **Logging** — Every transaction logged to Google Sheets with score, level, and action
+
+### Setup
+
+1. **Import the workflow** — Open n8n → Import from File → select `n8n/n8n_fraud_alert_workflow.json`
+2. **Configure environment variables in n8n:**
+   - `CHAINVIGIL_API_URL` — Your ChainVigil backend URL (default: `https://metafazer-chainvigil.hf.space`)
+   - `ALERT_FROM_EMAIL` / `ALERT_TO_EMAIL` — Email alert config
+   - `GOOGLE_SHEET_ID` — Google Sheet for logging
+3. **Enable disabled nodes** — Email and Google Sheets nodes are disabled by default (need credentials)
+4. **Activate the workflow** — Toggle the workflow to active
+
+### Test with the Simulator
+
+```bash
+# Send 10 simulated transactions (mix of normal and suspicious)
+python n8n/simulate_transactions.py --count 10 --interval 1
+
+# Send 25 transactions to n8n webhook
+python n8n/simulate_transactions.py --count 25 --target n8n
+
+# Custom URL and higher suspicious ratio
+python n8n/simulate_transactions.py --url http://localhost:5678/webhook/chainvigil-transaction --suspicious-ratio 0.5
+```
+
+
+## 📸 Screenshots
+
+### Pipeline Dashboard
+![Pipeline Dashboard](screenshots/pipeline.png)
+
+### Interactive Graph Visualization
+![Graph Visualization](screenshots/graph.png)
+
+### Account Risk Scores
+![Account Risk Scores](screenshots/accounts.png)
+
+### Detected Mule Ring Clusters
+![Mule Ring Clusters](screenshots/clusters.png)
+
+### Explainable AI Auditor
+![XAI Auditor](screenshots/xai.png)
+
+### Audit Reports
+![Audit Reports](screenshots/reports.png)
+
+### n8n Fraud Alert Workflow
+![n8n Executions High Risk](screenshots/n8n%20execution%20risk%20high.png)
+![n8n Executions Low Risk](screenshots/n8n%20execution%20risk%20low.png)
+
+### Automated Email Alerts
+![Email Alert](screenshots/n8n-alert.png)
+
+### Google Sheets Audit Logging
+![Google Sheets Logging](screenshots/n8n-sheets.png)
+
+---
+
 ## 🗂️ Project Structure
 
 ```
-ChainVigil-Cross-Channel-Fraud-Intelligence-System/
+Mule-detection/
 ├── README.md
 ├── ChainVigil_Documentation.md    # Full project documentation
 │
 ├── backend/
 │   ├── config.py                  # Settings (DB, GNN params, paths)
-│   ├── main.py                    # FastAPI server (15+ endpoints)
+│   ├── main.py                    # FastAPI server (18+ endpoints)
 │   ├── requirements.txt           # Python dependencies
 │   ├── data/generator.py          # Synthetic data generator
 │   ├── graph/builder.py           # Graph construction (NetworkX)
@@ -196,6 +275,10 @@ ChainVigil-Cross-Channel-Fraud-Intelligence-System/
 │   ├── xai/explainer.py           # Gradient×Input explanations
 │   └── xai/report.py              # Audit report generator
 │
+├── n8n/
+│   ├── n8n_fraud_alert_workflow.json  # Importable n8n workflow
+│   └── simulate_transactions.py       # Transaction simulator
+│
 └── frontend-app/
     ├── package.json               # NPM dependencies
     └── src/
@@ -204,6 +287,8 @@ ChainVigil-Cross-Channel-Fraud-Intelligence-System/
 ```
 
 ---
+
+
 
 ## ⚠️ Troubleshooting
 
@@ -214,3 +299,4 @@ ChainVigil-Cross-Channel-Fraud-Intelligence-System/
 | `ENOSPC: System limit for file watchers reached` | Run `echo fs.inotify.max_user_watches=524288 \| sudo tee -a /etc/sysctl.conf` (Linux only) |
 | Frontend shows CORS errors | Make sure the backend is running on port 8000 |
 | Neo4j connection warning | This is normal — the system works fine without Neo4j |
+| HuggingFace Space shows "Runtime error" | Go to Space Settings → click "Factory reboot" (transient DNS issue) |
