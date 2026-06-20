@@ -240,28 +240,19 @@ python n8n/simulate_transactions.py --url http://localhost:5678/webhook/chainvig
 ### Audit Reports
 ![Audit Reports](screenshots/reports.png)
 
-### n8n Fraud Alert Workflow
-![n8n Executions High Risk](screenshots/n8n%20execution%20risk%20high.png)
-![n8n Executions Low Risk](screenshots/n8n%20execution%20risk%20low.png)
-
-### Automated Email Alerts
-![Email Alert](screenshots/n8n-alert.png)
-
-### Google Sheets Audit Logging
-![Google Sheets Logging](screenshots/n8n-sheets.png)
 
 ---
 
 ## 🗂️ Project Structure
 
 ```
-Mule-detection/
+ChainVigil-Cross-Channel-Fraud-Intelligence-System/
 ├── README.md
 ├── ChainVigil_Documentation.md    # Full project documentation
 │
 ├── backend/
 │   ├── config.py                  # Settings (DB, GNN params, paths)
-│   ├── main.py                    # FastAPI server (18+ endpoints)
+│   ├── main.py                    # FastAPI server (15+ endpoints)
 │   ├── requirements.txt           # Python dependencies
 │   ├── data/generator.py          # Synthetic data generator
 │   ├── graph/builder.py           # Graph construction (NetworkX)
@@ -274,10 +265,6 @@ Mule-detection/
 │   ├── risk/engine.py             # Cluster detection & risk analysis
 │   ├── xai/explainer.py           # Gradient×Input explanations
 │   └── xai/report.py              # Audit report generator
-│
-├── n8n/
-│   ├── n8n_fraud_alert_workflow.json  # Importable n8n workflow
-│   └── simulate_transactions.py       # Transaction simulator
 │
 └── frontend-app/
     ├── package.json               # NPM dependencies
